@@ -33,6 +33,32 @@
         trusttunnel-client = final.callPackage ./pkgs/trusttunnel-client.nix { };
       };
 
+      nixosModules = {
+        endpoint =
+          { ... }:
+          {
+            imports = [ ./modules/endpoint.nix ];
+            nixpkgs.overlays = [ self.overlays.default ];
+          };
+
+        client =
+          { ... }:
+          {
+            imports = [ ./modules/client.nix ];
+            nixpkgs.overlays = [ self.overlays.default ];
+          };
+
+        default =
+          { ... }:
+          {
+            imports = [
+              ./modules/endpoint.nix
+              ./modules/client.nix
+            ];
+            nixpkgs.overlays = [ self.overlays.default ];
+          };
+      };
+
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
       checks = forAllSystems (
