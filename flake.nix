@@ -35,8 +35,25 @@
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
-      checks = forAllSystems (system: {
-        inherit (self.packages.${system}) trusttunnel-endpoint trusttunnel-client;
-      });
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          inherit (self.packages.${system}) trusttunnel-endpoint trusttunnel-client;
+        }
+        // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          endpoint-vm = pkgs.callPackage ./tests/endpoint.nix {
+            inherit (self.packages.${system}) trusttunnel-endpoint;
+            endpointModule = ./modules/endpoint.nix;
+          };
+          client-vm = pkgs.callPackage ./tests/client.nix {
+            inherit (self.packages.${system}) trusttunnel-endpoint trusttunnel-client;
+            endpointModule = ./modules/endpoint.nix;
+            clientModule = ./modules/client.nix;
+          };
+        }
+      );
     };
 }
