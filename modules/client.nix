@@ -145,7 +145,7 @@ in
         github = "i-zhirov";
       }
     ];
-    doc = "https://github.com/i-zhirov/trusttunnel-nix/blob/main/README.md#module-options";
+    doc = ../../README.md;
   };
 
   options.services.trusttunnel.client = {
