@@ -82,7 +82,7 @@ let
         }) cfg.credentials;
       };
 
-  vpnToml = pkgs.writeText "vpn.toml" ''
+  vpnBase = pkgs.writeText "vpn-base.toml" ''
     listen_address = "${cfg.listenAddress}"
     ipv6_available = ${lib.boolToString cfg.ipv6Available}
     allow_private_network_connections = ${lib.boolToString cfg.allowPrivateNetwork}
@@ -184,13 +184,18 @@ let
       ) "extended_auth = ${lib.boolToString cfg.forwardProtocol.socks5.extendedAuth}"}
     ''}
 
-    ${lib.optionalString (cfg.settings != { }) (
-      builtins.readFile (formats.generate "vpn-extra.toml" cfg.settings)
-    )}
-    ${cfg.extraConfig}
   '';
 
-  hostsToml = pkgs.writeText "hosts.toml" ''
+  vpnSettings = lib.optional (cfg.settings != { }) (
+    formats.generate "vpn-settings.toml" cfg.settings
+  );
+  vpnExtra = pkgs.writeText "vpn-extra.toml" cfg.extraConfig;
+
+  vpnToml = pkgs.runCommand "vpn.toml" { } ''
+    cat ${lib.concatStringsSep " " ([ vpnBase ] ++ vpnSettings ++ [ vpnExtra ])} > $out
+  '';
+
+  hostsBase = pkgs.writeText "hosts-base.toml" ''
     ${lib.concatStringsSep "\n" (
       map (h: ''
         [[main_hosts]]
@@ -233,10 +238,15 @@ let
       '') processedReverseProxyHosts
     )}
 
-    ${lib.optionalString (cfg.hostsSettings != { }) (
-      builtins.readFile (formats.generate "hosts-extra.toml" cfg.hostsSettings)
-    )}
-    ${cfg.extraHostsConfig}
+  '';
+
+  hostsSettings = lib.optional (cfg.hostsSettings != { }) (
+    formats.generate "hosts-settings.toml" cfg.hostsSettings
+  );
+  hostsExtra = pkgs.writeText "hosts-extra.toml" cfg.extraHostsConfig;
+
+  hostsToml = pkgs.runCommand "hosts.toml" { } ''
+    cat ${lib.concatStringsSep " " ([ hostsBase ] ++ hostsSettings ++ [ hostsExtra ])} > $out
   '';
 
   acmeHosts = builtins.filter (host: host.certPath == null && host.keyPath == null) allTlsHosts;

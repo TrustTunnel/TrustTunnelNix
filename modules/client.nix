@@ -28,12 +28,14 @@ let
     exclusions = cfg.exclusions;
   };
 
-  baseConfig = ''
-    ${builtins.readFile (formats.generate "client-base.toml" baseSettings)}
-    ${lib.optionalString (cfg.settings != { }) (
-      builtins.readFile (formats.generate "client-extra.toml" cfg.settings)
-    )}
-    ${cfg.extraConfig}
+  baseGenerated = formats.generate "client-base.toml" baseSettings;
+  settingsFile = lib.optional (cfg.settings != { }) (
+    formats.generate "client-settings.toml" cfg.settings
+  );
+  extraFile = pkgs.writeText "client-extra.toml" cfg.extraConfig;
+
+  baseConfigFile = pkgs.runCommand "trusttunnel-client-base.toml" { } ''
+    cat ${lib.concatStringsSep " " ([ baseGenerated ] ++ settingsFile ++ [ extraFile ])} > $out
   '';
 
   endpointSettings = {
@@ -57,9 +59,7 @@ let
     custom_sni = cfg.endpoint.customSni;
   });
 
-  directEndpointConfig = builtins.readFile (
-    formats.generate "client-endpoint.toml" { endpoint = endpointSettings; }
-  );
+  endpointFile = formats.generate "client-endpoint.toml" { endpoint = endpointSettings; };
 
   tunSettings = {
     bound_if = cfg.listener.tun.interface;
@@ -73,8 +73,8 @@ let
     change_system_dns = cfg.listener.tun.changeSystemDns;
   };
 
-  tunListenerConfig = lib.optionalString cfg.listener.tun.enable (
-    builtins.readFile (formats.generate "client-tun.toml" { listener.tun = tunSettings; })
+  tunFile = lib.optional cfg.listener.tun.enable (
+    formats.generate "client-tun.toml" { listener.tun = tunSettings; }
   );
 
   socksSettings = {
@@ -87,17 +87,17 @@ let
     password = cfg.listener.socks.password;
   });
 
-  socksListenerConfig = lib.optionalString cfg.listener.socks.enable (
-    builtins.readFile (formats.generate "client-socks.toml" { listener.socks = socksSettings; })
+  socksFile = lib.optional cfg.listener.socks.enable (
+    formats.generate "client-socks.toml" { listener.socks = socksSettings; }
   );
 
-  clientToml = pkgs.writeText "trusttunnel_client.toml" ''
-    ${baseConfig}${directEndpointConfig}${tunListenerConfig}${socksListenerConfig}
+  listenerConfigFile = pkgs.runCommand "trusttunnel-client-listener.toml" { } ''
+    cat ${lib.concatStringsSep " " (tunFile ++ socksFile ++ [ pkgs.emptyFile ])} > $out
   '';
 
-  baseConfigFile = pkgs.writeText "trusttunnel-client-base.toml" baseConfig;
-
-  listenerConfigFile = pkgs.writeText "trusttunnel-client-listener.toml" "${tunListenerConfig}${socksListenerConfig}";
+  clientToml = pkgs.runCommand "trusttunnel_client.toml" { } ''
+    cat ${baseConfigFile} ${endpointFile} ${listenerConfigFile} > $out
+  '';
 
   writeMergedConfig = ''
     ${pkgs.coreutils}/bin/cat ${baseConfigFile} > ${runtimeConfig}
