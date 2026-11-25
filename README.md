@@ -28,7 +28,7 @@ Add the flake as an input:
 ```nix
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     trusttunnel = {
       url = "github:i-zhirov/trusttunnel-nix";
       inputs.nixpkgs.follows = "nixpkgs";
