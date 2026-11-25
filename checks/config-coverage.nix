@@ -31,7 +31,7 @@ let
       clientModule
       {
         nixpkgs.hostPlatform = system;
-        system.stateVersion = "25.11";
+        system.stateVersion = "26.05";
 
         services.trusttunnel.endpoint = {
           enable = true;

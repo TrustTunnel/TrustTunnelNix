@@ -21,8 +21,12 @@ rustPlatform.buildRustPackage (finalAttrs: {
     hash = "sha256-wn/ikm8ZlycFPvzToimJVW0t0AJMKurFKVtg9xoDIuA=";
   };
 
-  # This release uses boring 4.22.0, which builds against the boringssl in
-  # nixos-25.11 without patches.
+  # boring 4.22.0 does not compile against the boringssl in nixpkgs 26.05.
+  # Apply the upstream fix that moves to boring 5 and quiche 0.30.
+  # Upstream PR: https://github.com/TrustTunnel/TrustTunnel/pull/155
+  cargoPatches = [ ./boring-v5.patch ];
+
+  # The lock file must match the patched source.
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ./trusttunnel-endpoint-Cargo.lock;
   };

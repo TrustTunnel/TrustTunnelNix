@@ -50,7 +50,8 @@ Install the client into a profile:
 nix profile install github:i-zhirov/trusttunnel-nix#trusttunnel-client
 ```
 
-The flake pins `nixos-25.11`. The endpoint uses `boring 4.22.0`, which
+The flake pins `nixos-26.05`. The endpoint applies the upstream
+boring-v5 patch and uses `boring 5.2.0` with `quiche 0.30.0`, which
 matches the boringssl in that release. Set `inputs.nixpkgs.follows` to
 keep one nixpkgs in your configuration.
 
