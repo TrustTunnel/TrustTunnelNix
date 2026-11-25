@@ -54,6 +54,7 @@ stdenvNoCC.mkDerivation (
     passthru.updateScript = ../scripts/update-client.sh;
 
     meta = {
+      version = finalAttrs.version;
       description = "Command-line client for the TrustTunnel VPN";
       homepage = "https://github.com/TrustTunnel/TrustTunnelClient";
       changelog = "https://github.com/TrustTunnel/TrustTunnelClient/blob/v${finalAttrs.version}/CHANGELOG.md";
