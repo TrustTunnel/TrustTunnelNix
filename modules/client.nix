@@ -8,6 +8,8 @@
 let
   cfg = config.services.trusttunnel.client;
 
+  formats = pkgs.formats.toml { };
+
   runtimeConfig = "/run/trusttunnel-client/config.toml";
 
   hasRuntimeSource =
@@ -46,6 +48,11 @@ let
     killswitch_allow_ports = [${lib.concatStringsSep ", " (map toString cfg.killswitch.allowPorts)}]
     post_quantum_group_enabled = ${lib.boolToString cfg.postQuantum}
     exclusions = [${lib.concatStringsSep ", " (map (e: "\"${e}\"") cfg.exclusions)}]
+
+    ${lib.optionalString (cfg.settings != { }) (
+      builtins.readFile (formats.generate "client-extra.toml" cfg.settings)
+    )}
+    ${cfg.extraConfig}
   '';
 
   directEndpointConfig = ''
@@ -388,6 +395,18 @@ in
           description = "Password for SOCKS authentication.";
         };
       };
+    };
+
+    settings = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+      description = "Extra config.toml settings rendered as TOML. Use for keys not covered by typed options.";
+    };
+
+    extraConfig = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
+      description = "Raw TOML appended to config.toml after the generated settings.";
     };
   };
 

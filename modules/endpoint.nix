@@ -8,6 +8,8 @@
 let
   cfg = config.services.trusttunnel.endpoint;
 
+  formats = pkgs.formats.toml { };
+
   listenPort =
     let
       last = lib.last (lib.splitString ":" cfg.listenAddress);
@@ -101,6 +103,22 @@ let
       cfg.defaultMaxHttp3ConnsPerClient != null
     ) "default_max_http3_conns_per_client = ${toString cfg.defaultMaxHttp3ConnsPerClient}"}
 
+    ${lib.optionalString cfg.subscription.enable ''
+      [subscription]
+      enabled = true
+      hostname = "${cfg.subscription.hostname}"
+      path = "${cfg.subscription.path}"
+      address = "${cfg.subscription.address}"
+      name = "${cfg.subscription.name}"
+      dns_upstreams = [${lib.concatStringsSep ", " (map (u: "\"${u}\"") cfg.subscription.dnsUpstreams)}]
+      ${lib.optionalString (
+        cfg.subscription.customSni != null
+      ) ''custom_sni = "${cfg.subscription.customSni}"''}
+      ${lib.optionalString (
+        cfg.subscription.clientRandomPrefix != null
+      ) ''client_random_prefix = "${cfg.subscription.clientRandomPrefix}"''}
+    ''}
+
     [listen_protocols.http1]
     upload_buffer_size = ${toString cfg.protocols.http1.uploadBufferSize}
 
@@ -160,6 +178,11 @@ let
         cfg.forwardProtocol.socks5.extendedAuth != null
       ) "extended_auth = ${lib.boolToString cfg.forwardProtocol.socks5.extendedAuth}"}
     ''}
+
+    ${lib.optionalString (cfg.settings != { }) (
+      builtins.readFile (formats.generate "vpn-extra.toml" cfg.settings)
+    )}
+    ${cfg.extraConfig}
   '';
 
   hostsToml = pkgs.writeText "hosts.toml" ''
@@ -209,6 +232,11 @@ let
         ) "h3_backward_compatibility = ${lib.boolToString h.h3BackwardCompatibility}"}
       '') processedReverseProxyHosts
     )}
+
+    ${lib.optionalString (cfg.hostsSettings != { }) (
+      builtins.readFile (formats.generate "hosts-extra.toml" cfg.hostsSettings)
+    )}
+    ${cfg.extraHostsConfig}
   '';
 
   acmeHosts = builtins.filter (host: host.certPath == null) (
@@ -769,6 +797,76 @@ in
         };
       };
     };
+
+    subscription = {
+      enable = lib.mkEnableOption "subscription link generation";
+
+      hostname = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Public hostname advertised in subscription links.";
+      };
+
+      path = lib.mkOption {
+        type = lib.types.str;
+        default = "/subscription";
+        description = "URL path for the subscription endpoint.";
+      };
+
+      address = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Subscription server address (host:port).";
+      };
+
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Subscription display name.";
+      };
+
+      dnsUpstreams = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "DNS upstreams advertised to subscription clients.";
+      };
+
+      customSni = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Custom SNI advertised to subscription clients.";
+      };
+
+      clientRandomPrefix = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Client random prefix or prefix/mask in hex.";
+      };
+    };
+
+    settings = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+      description = "Extra vpn.toml settings rendered as TOML. Use for keys not covered by typed options.";
+    };
+
+    extraConfig = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
+      description = "Raw TOML appended to vpn.toml after the generated settings.";
+    };
+
+    hostsSettings = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+      description = "Extra hosts.toml settings rendered as TOML. Use for keys not covered by typed options.";
+    };
+
+    extraHostsConfig = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
+      description = "Raw TOML appended to hosts.toml after the generated settings.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -776,6 +874,11 @@ in
       {
         assertion = cfg.credentialsFile != null || lib.all (c: c.password != null) cfg.credentials;
         message = "services.trusttunnel.endpoint.credentials: set a password or use credentialsFile.";
+      }
+      {
+        assertion =
+          !cfg.subscription.enable || (cfg.subscription.hostname != "" && cfg.subscription.address != "");
+        message = "services.trusttunnel.endpoint.subscription: hostname and address are required when enabled.";
       }
     ];
 

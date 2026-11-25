@@ -199,6 +199,8 @@ The modules define `services.trusttunnel.endpoint` and
 - `credentialsFile`, `credentials`
 - `tls.selfSigned`, `tls.acme`, `tls.mainHosts`
 - `metrics`, `forwardProtocol`, `timeouts`, `protocols`
+- `subscription` (`hostname`, `path`, `address`, `name`, `dnsUpstreams`, `customSni`, `clientRandomPrefix`)
+- `settings`, `extraConfig` (freeform `vpn.toml`); `hostsSettings`, `extraHostsConfig` (freeform `hosts.toml`)
 
 ### Client
 
@@ -206,6 +208,7 @@ The modules define `services.trusttunnel.endpoint` and
 - `deeplinkFile`, `importConfigFile`
 - `endpoint`, `listener.tun`, `listener.socks`
 - `killswitch`, `vpnMode`, `exclusions`, `postQuantum`
+- `settings`, `extraConfig` (freeform `config.toml`)
 
 Run `nixos-option services.trusttunnel.endpoint` or
 `nixos-option services.trusttunnel.client` for the full option
