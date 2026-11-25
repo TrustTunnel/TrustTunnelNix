@@ -55,12 +55,7 @@ let
     h:
     (processHost h)
     // {
-      inherit (h)
-        allowedSni
-        serverAddress
-        pathMask
-        h3BackwardCompatibility
-        ;
+      inherit (h) allowedSni;
     }
   ) cfg.tls.reverseProxyHosts;
 
@@ -96,6 +91,9 @@ let
     ${lib.optionalString (
       cfg.auth.failureStatusCode != null
     ) "auth_failure_status_code = ${toString cfg.auth.failureStatusCode}"}
+    ${lib.optionalString (
+      cfg.auth.nonConnectFailureStatusCode != null
+    ) "non_connect_auth_failure_status_code = ${toString cfg.auth.nonConnectFailureStatusCode}"}
     ${lib.optionalString (
       cfg.defaultMaxHttp2ConnsPerClient != null
     ) "default_max_http2_conns_per_client = ${toString cfg.defaultMaxHttp2ConnsPerClient}"}
@@ -225,11 +223,6 @@ let
         ${lib.optionalString (h.allowedSni != null)
           "allowed_sni = [${lib.concatStringsSep ", " (map (s: "\"${s}\"") h.allowedSni)}]"
         }
-        server_address = "${h.serverAddress}"
-        ${lib.optionalString (h.pathMask != null) ''path_mask = "${h.pathMask}"''}
-        ${lib.optionalString (
-          h.h3BackwardCompatibility != null
-        ) "h3_backward_compatibility = ${lib.boolToString h.h3BackwardCompatibility}"}
       '') processedReverseProxyHosts
     )}
 
@@ -496,31 +489,16 @@ in
                 ];
                 description = "Allowed SNI override for client connections.";
               };
-              serverAddress = lib.mkOption {
-                type = lib.types.str;
-                description = "Backend server address, for example 127.0.0.1:80.";
-              };
-              pathMask = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = null;
-                description = "Path mask for reverse proxy routing.";
-              };
-              h3BackwardCompatibility = lib.mkOption {
-                type = lib.types.nullOr lib.types.bool;
-                default = null;
-                description = "Enable HTTP/3 backward compatibility for this host.";
-              };
             };
           }
         );
         default = [ ];
         example = [
           {
-            hostname = "example.com";
-            serverAddress = "127.0.0.1:80";
+            hostname = "api.example.com";
           }
         ];
-        description = "TLS connections that match these hostnames are proxied to a backend server.";
+        description = "TLS connections that match these hostnames are proxied to the server configured in services.trusttunnel.endpoint.reverseProxy.";
       };
     };
 
@@ -755,7 +733,12 @@ in
       failureStatusCode = lib.mkOption {
         type = lib.types.nullOr lib.types.int;
         default = null;
-        description = "HTTP status code to return on authentication failure.";
+        description = "HTTP status code to return on authentication failure of CONNECT requests.";
+      };
+      nonConnectFailureStatusCode = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        description = "HTTP status code to return on authentication failure of non-CONNECT requests. Null falls back to auth.failureStatusCode.";
       };
     };
 

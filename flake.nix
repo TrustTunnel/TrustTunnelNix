@@ -68,6 +68,12 @@
         in
         {
           inherit (self.packages.${system}) trusttunnel-endpoint trusttunnel-client;
+          config-coverage = pkgs.callPackage ./checks/config-coverage.nix {
+            inherit (nixpkgs) lib;
+            inherit (self.packages.${system}) trusttunnel-endpoint trusttunnel-client;
+            endpointModule = ./modules/endpoint.nix;
+            clientModule = ./modules/client.nix;
+          };
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           endpoint-vm = pkgs.callPackage ./tests/endpoint.nix {

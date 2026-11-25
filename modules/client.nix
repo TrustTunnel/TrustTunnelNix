@@ -19,6 +19,8 @@ let
 
     [listener.tun]
     bound_if = "${cfg.listener.tun.interface}"
+    device_name = "${cfg.listener.tun.deviceName}"
+    use_existing = ${lib.boolToString cfg.listener.tun.useExisting}
     included_routes = [${
       lib.concatStringsSep ", " (map (r: "\"${r}\"") cfg.listener.tun.includedRoutes)
     }]
@@ -26,6 +28,8 @@ let
       lib.concatStringsSep ", " (map (r: "\"${r}\"") cfg.listener.tun.excludedRoutes)
     }]
     mtu_size = ${toString cfg.listener.tun.mtu}
+    tcp_recv_buf_size = ${toString cfg.listener.tun.tcpRecvBufferSize}
+    tcp_send_buf_size = ${toString cfg.listener.tun.tcpSendBufferSize}
     change_system_dns = ${lib.boolToString cfg.listener.tun.changeSystemDns}
   '';
 
@@ -47,6 +51,10 @@ let
     killswitch_enabled = ${lib.boolToString cfg.killswitch.enable}
     killswitch_allow_ports = [${lib.concatStringsSep ", " (map toString cfg.killswitch.allowPorts)}]
     post_quantum_group_enabled = ${lib.boolToString cfg.postQuantum}
+    exclusions_tcp_early_ack_enabled = ${lib.boolToString cfg.exclusionsTcpEarlyAck}
+    exclusions_preresolve_enabled = ${lib.boolToString cfg.exclusionsPreresolve}
+    exclusions_preresolve_max_queries = ${toString cfg.exclusionsPreresolveMaxQueries}
+    exclusions_scannable_ports = "${cfg.exclusionsScannablePorts}"
     exclusions = [${lib.concatStringsSep ", " (map (e: "\"${e}\"") cfg.exclusions)}]
 
     ${lib.optionalString (cfg.settings != { }) (
@@ -63,12 +71,14 @@ let
     username = "${cfg.endpoint.username}"
     password = "${cfg.endpoint.password}"
     client_random = "${cfg.endpoint.clientRandom}"
+    client_random_auth_key = "${cfg.endpoint.clientRandomAuthKey}"
     skip_verification = ${lib.boolToString cfg.endpoint.skipVerification}
     ${lib.optionalString (
       cfg.endpoint.certificate != null
     ) ''certificate = "${cfg.endpoint.certificate}"''}
     ${lib.optionalString (cfg.endpoint.customSni != null) ''custom_sni = "${cfg.endpoint.customSni}"''}
     upstream_protocol = "${cfg.endpoint.protocol}"
+    tls_profile = "${cfg.endpoint.tlsProfile}"
     anti_dpi = ${lib.boolToString cfg.endpoint.antiDpi}
     dns_upstreams = [${lib.concatStringsSep ", " (map (d: "\"${d}\"") cfg.endpoint.dnsUpstreams)}]
   '';
@@ -215,6 +225,31 @@ in
       description = "Domains and IPs to route according to vpnMode. Supports domain, wildcard, IP, and CIDR.";
     };
 
+    exclusionsTcpEarlyAck = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Route connections to scannable ports through a fake upstream to read the TLS SNI before connecting. Makes exclusions work with a secure DNS resolver or wildcard entries.";
+    };
+
+    exclusionsPreresolve = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Pre-resolve DNS-resolvable exclusions in the background so that excluded hosts are routed correctly without waiting for the first DNS response.";
+    };
+
+    exclusionsPreresolveMaxQueries = lib.mkOption {
+      type = lib.types.int;
+      default = 50;
+      description = "Maximum number of exclusion domains to pre-resolve per cycle.";
+    };
+
+    exclusionsScannablePorts = lib.mkOption {
+      type = lib.types.str;
+      default = "443,80,8080,8008,853";
+      example = "443,80,8080:8090,853";
+      description = "Comma-separated ports considered scannable for domain extraction and exclusion matching. Supports ranges.";
+    };
+
     postQuantum = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -276,6 +311,12 @@ in
         description = "TLS client random prefix or mask in hex.";
       };
 
+      clientRandomAuthKey = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "TLS client random auth key in hex. When set, part of client_random is derived from this key, the SNI, and random bytes.";
+      };
+
       skipVerification = lib.mkOption {
         type = lib.types.bool;
         default = false;
@@ -302,6 +343,20 @@ in
         ];
         default = "http2";
         description = "Upstream protocol.";
+      };
+
+      tlsProfile = lib.mkOption {
+        type = lib.types.enum [
+          "chrome"
+          "chrome_canary"
+          "safari"
+          "firefox"
+          "okhttp"
+          "openssl"
+          "boringssl"
+        ];
+        default = "chrome";
+        description = "TLS ClientHello fingerprint to mimic.";
       };
 
       antiDpi = lib.mkOption {
@@ -335,6 +390,18 @@ in
           description = "Network interface for the VPN. Auto-detected when empty.";
         };
 
+        deviceName = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "TUN device name. Empty lets the kernel assign one.";
+        };
+
+        useExisting = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Attach to the existing device named by deviceName instead of creating one. Requires deviceName to be set.";
+        };
+
         includedRoutes = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           default = [
@@ -361,6 +428,18 @@ in
           type = lib.types.int;
           default = 1280;
           description = "MTU size on the virtual interface.";
+        };
+
+        tcpRecvBufferSize = lib.mkOption {
+          type = lib.types.int;
+          default = 0;
+          description = "TCP receive window size in bytes. 0 uses the optimized default.";
+        };
+
+        tcpSendBufferSize = lib.mkOption {
+          type = lib.types.int;
+          default = 0;
+          description = "TCP send buffer size in bytes. 0 uses the optimized default.";
         };
 
         changeSystemDns = lib.mkOption {
@@ -426,6 +505,10 @@ in
           || cfg.importConfigFile != null
           || (cfg.endpoint.hostname != "" && cfg.endpoint.addresses != [ ]);
         message = "services.trusttunnel.client: set endpoint.hostname and endpoint.addresses, or use deeplinkFile or importConfigFile.";
+      }
+      {
+        assertion = !cfg.listener.tun.useExisting || cfg.listener.tun.deviceName != "";
+        message = "services.trusttunnel.client.listener.tun: useExisting requires deviceName.";
       }
     ];
 
