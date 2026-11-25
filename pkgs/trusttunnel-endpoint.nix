@@ -69,6 +69,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   passthru.updateScript = nix-update-script { };
 
   meta = {
+    version = finalAttrs.version;
     description = "Modern, fast and obfuscated VPN protocol - endpoint component";
     homepage = "https://github.com/TrustTunnel/TrustTunnel";
     changelog = "https://github.com/TrustTunnel/TrustTunnel/blob/v${finalAttrs.version}/CHANGELOG.md";
