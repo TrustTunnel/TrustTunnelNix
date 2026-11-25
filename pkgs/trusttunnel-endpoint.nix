@@ -13,7 +13,6 @@
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "trusttunnel-endpoint";
   version = "1.3.1";
-  __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "TrustTunnel";
@@ -22,20 +21,21 @@ rustPlatform.buildRustPackage (finalAttrs: {
     hash = "sha256-wn/ikm8ZlycFPvzToimJVW0t0AJMKurFKVtg9xoDIuA=";
   };
 
-  # TrustTunnel 1.3.1 uses boring 4.22.0. This is compatible with the
-  # boringssl shipped by nixos-25.11. The nixpkgs `boring-v5.patch` is only
-  # needed with the newer boringssl in nixpkgs-unstable.
+  # This release uses boring 4.22.0, which builds against the boringssl in
+  # nixos-25.11 without patches.
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ./trusttunnel-endpoint-Cargo.lock;
   };
 
-  # `importCargoLock` puts each crate directly under `cargoDepsCopy`. The
-  # nixpkgs recipe uses `*/boring-sys-*` because `fetchCargoVendor` adds one
-  # level. Link against the system boringssl instead of the static libraries.
+  # importCargoLock puts each crate directly under cargoDepsCopy. Make
+  # boring-sys and quiche link against the shared boringssl libraries. Their
+  # build scripts request static libraries by default.
   postPatch = ''
-    substituteInPlace $cargoDepsCopy/boring-sys-*/build/main.rs $cargoDepsCopy/quiche-*/src/build.rs \
-      --replace-fail "cargo:rustc-link-lib=static=crypto" "cargo:rustc-link-lib=dylib=crypto" \
-      --replace-fail "cargo:rustc-link-lib=static=ssl" "cargo:rustc-link-lib=dylib=ssl"
+    for source in $cargoDepsCopy/boring-sys-*/build/main.rs $cargoDepsCopy/quiche-*/src/build.rs; do
+      substituteInPlace "$source" \
+        --replace-fail "cargo:rustc-link-lib=static=crypto" "cargo:rustc-link-lib=dylib=crypto" \
+        --replace-fail "cargo:rustc-link-lib=static=ssl" "cargo:rustc-link-lib=dylib=ssl"
+    done
   '';
 
   env = {
