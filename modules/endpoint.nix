@@ -241,7 +241,6 @@ in
         github = "i-zhirov";
       }
     ];
-    doc = ../README.md;
   };
 
   options.services.trusttunnel.endpoint = {
