@@ -10,18 +10,15 @@
 
 let
   # The client configuration is parsed by the client, which is a prebuilt
-  # binary. Follow the package version, so a client update without a matching
-  # source hash fails here instead of silently validating an old schema.
-  clientSrc = pkgs.fetchFromGitHub {
-    owner = "TrustTunnel";
-    repo = "TrustTunnelClient";
-    tag = "v${trusttunnel-client.version}";
-    hash = "sha256-1O5ztAydZaU31bhZS7+Mm+yspezRykl+/OinYVC+fT4=";
-  };
+  # binary. The package source follows the client version, so a client update
+  # without a matching source hash fails here instead of silently validating an
+  # old schema.
+  clientSrc = trusttunnel-client.clientSrc;
 
   # A schema probe, not a runnable configuration: it enables every listener
   # kind and both forward protocols so that every typed key is emitted. The
-  # check compares keys; it never starts a service.
+  # check compares keys. It does not evaluate runtime assertions or start a
+  # service. The VM tests cover valid listener and forward-protocol choices.
   evaluated = lib.nixosSystem {
     # `nixpkgs.hostPlatform` below selects the platform. Passing `system`
     # would only set the deprecated `nixpkgs.system` option.

@@ -18,17 +18,29 @@ let
 
   selfSignedCertDir = hostname: "/var/lib/trusttunnel/certs/${hostname}";
 
-  selfSignedHosts = lib.filter (host: host.certPath == null) (
-    cfg.tls.mainHosts ++ cfg.tls.pingHosts ++ cfg.tls.speedtestHosts ++ cfg.tls.reverseProxyHosts
-  );
+  allTlsHosts =
+    cfg.tls.mainHosts ++ cfg.tls.pingHosts ++ cfg.tls.speedtestHosts ++ cfg.tls.reverseProxyHosts;
+
+  selfSignedHosts = lib.filter (host: host.certPath == null && host.keyPath == null) allTlsHosts;
 
   useSelfSigned = cfg.tls.selfSigned.enable && !cfg.tls.acme.enable;
+
+  hostAssertions = lib.concatMap (host: [
+    {
+      assertion = (host.certPath == null) == (host.keyPath == null);
+      message = "services.trusttunnel.endpoint.tls: host '${host.hostname}' must set both certPath and keyPath, or neither.";
+    }
+    {
+      assertion = host.certPath != null || cfg.tls.acme.enable || useSelfSigned;
+      message = "services.trusttunnel.endpoint.tls: host '${host.hostname}' has no certificate. Set certPath and keyPath, enable ACME, or enable self-signed certificates.";
+    }
+  ]) allTlsHosts;
 
   processHost =
     host:
     let
-      useACME = cfg.tls.acme.enable && host.certPath == null;
-      useSelfSignedForHost = useSelfSigned && host.certPath == null;
+      useACME = cfg.tls.acme.enable && host.certPath == null && host.keyPath == null;
+      useSelfSignedForHost = useSelfSigned && host.certPath == null && host.keyPath == null;
     in
     {
       inherit (host) hostname;
@@ -63,15 +75,12 @@ let
     if cfg.credentialsFile != null then
       cfg.credentialsFile
     else
-      pkgs.writeText "credentials.toml" ''
-        ${lib.concatStringsSep "\n" (
-          map (c: ''
-            [[client]]
-            username = "${c.username}"
-            password = "${if c.password == null then "" else c.password}"
-          '') cfg.credentials
-        )}
-      '';
+      formats.generate "credentials.toml" {
+        client = map (c: {
+          username = c.username;
+          password = if c.password == null then "" else c.password;
+        }) cfg.credentials;
+      };
 
   vpnToml = pkgs.writeText "vpn.toml" ''
     listen_address = "${cfg.listenAddress}"
@@ -145,9 +154,7 @@ let
     ${lib.optionalString cfg.reverseProxy.enable ''
       [reverse_proxy]
       server_address = "${cfg.reverseProxy.serverAddress}"
-      ${lib.optionalString (
-        cfg.reverseProxy.pathMask != null
-      ) ''path_mask = "${cfg.reverseProxy.pathMask}"''}
+      path_mask = "${cfg.reverseProxy.pathMask}"
       ${lib.optionalString (
         cfg.reverseProxy.h3BackwardCompatibility != null
       ) "h3_backward_compatibility = ${lib.boolToString cfg.reverseProxy.h3BackwardCompatibility}"}
@@ -232,9 +239,7 @@ let
     ${cfg.extraHostsConfig}
   '';
 
-  acmeHosts = builtins.filter (host: host.certPath == null) (
-    cfg.tls.mainHosts ++ cfg.tls.reverseProxyHosts
-  );
+  acmeHosts = builtins.filter (host: host.certPath == null && host.keyPath == null) allTlsHosts;
 
   selfSignedScript = ''
     ${lib.concatStringsSep "\n" (
@@ -718,9 +723,9 @@ in
         description = "Default reverse proxy backend address.";
       };
       pathMask = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Path mask for the default reverse proxy.";
+        type = lib.types.str;
+        default = "/";
+        description = "Path mask for the default reverse proxy. It must start with a slash.";
       };
       h3BackwardCompatibility = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
@@ -863,11 +868,38 @@ in
           !cfg.subscription.enable || (cfg.subscription.hostname != "" && cfg.subscription.address != "");
         message = "services.trusttunnel.endpoint.subscription: hostname and address are required when enabled.";
       }
-    ];
+      {
+        assertion = cfg.tls.mainHosts != [ ];
+        message = "services.trusttunnel.endpoint.tls.mainHosts: configure at least one host.";
+      }
+      {
+        assertion = !(cfg.forwardProtocol.direct.enable && cfg.forwardProtocol.socks5.enable);
+        message = "services.trusttunnel.endpoint.forwardProtocol: enable exactly one of direct or socks5.";
+      }
+      {
+        assertion =
+          !cfg.reverseProxy.enable
+          || (cfg.reverseProxy.pathMask != "" && lib.hasPrefix "/" cfg.reverseProxy.pathMask);
+        message = "services.trusttunnel.endpoint.reverseProxy.pathMask: use a non-empty path that starts with a slash.";
+      }
+    ]
+    ++ hostAssertions;
 
     warnings =
       lib.optional (cfg.credentials != [ ])
-        "services.trusttunnel.endpoint.credentials stores passwords in the Nix store. Use credentialsFile instead.";
+        "services.trusttunnel.endpoint.credentials stores passwords in the Nix store. Use credentialsFile instead."
+      ++
+        lib.optional
+          (
+            cfg.metrics.enable
+            && cfg.metrics.perClientMetrics
+            && !(
+              lib.hasPrefix "127." cfg.metrics.address
+              || lib.hasPrefix "localhost:" cfg.metrics.address
+              || lib.hasPrefix "[::1]:" cfg.metrics.address
+            )
+          )
+          "services.trusttunnel.endpoint.metrics.perClientMetrics exposes usernames and client IPs. Bind it to a protected listener.";
 
     users.groups.trusttunnel = { };
     users.users.trusttunnel = {

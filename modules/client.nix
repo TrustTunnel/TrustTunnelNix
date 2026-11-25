@@ -15,73 +15,81 @@ let
   hasRuntimeSource =
     cfg.deeplinkFile != null || cfg.importConfigFile != null || cfg.credentialsFile != null;
 
-  tunListenerConfig = lib.optionalString cfg.listener.tun.enable ''
-
-    [listener.tun]
-    bound_if = "${cfg.listener.tun.interface}"
-    device_name = "${cfg.listener.tun.deviceName}"
-    use_existing = ${lib.boolToString cfg.listener.tun.useExisting}
-    included_routes = [${
-      lib.concatStringsSep ", " (map (r: "\"${r}\"") cfg.listener.tun.includedRoutes)
-    }]
-    excluded_routes = [${
-      lib.concatStringsSep ", " (map (r: "\"${r}\"") cfg.listener.tun.excludedRoutes)
-    }]
-    mtu_size = ${toString cfg.listener.tun.mtu}
-    tcp_recv_buf_size = ${toString cfg.listener.tun.tcpRecvBufferSize}
-    tcp_send_buf_size = ${toString cfg.listener.tun.tcpSendBufferSize}
-    change_system_dns = ${lib.boolToString cfg.listener.tun.changeSystemDns}
-  '';
-
-  socksListenerConfig = lib.optionalString cfg.listener.socks.enable ''
-
-    [listener.socks]
-    address = "${cfg.listener.socks.address}"
-    ${lib.optionalString (
-      cfg.listener.socks.username != null
-    ) ''username = "${cfg.listener.socks.username}"''}
-    ${lib.optionalString (
-      cfg.listener.socks.password != null
-    ) ''password = "${cfg.listener.socks.password}"''}
-  '';
+  baseSettings = {
+    loglevel = cfg.logLevel;
+    vpn_mode = cfg.vpnMode;
+    killswitch_enabled = cfg.killswitch.enable;
+    killswitch_allow_ports = cfg.killswitch.allowPorts;
+    post_quantum_group_enabled = cfg.postQuantum;
+    exclusions_tcp_early_ack_enabled = cfg.exclusionsTcpEarlyAck;
+    exclusions_preresolve_enabled = cfg.exclusionsPreresolve;
+    exclusions_preresolve_max_queries = cfg.exclusionsPreresolveMaxQueries;
+    exclusions_scannable_ports = cfg.exclusionsScannablePorts;
+    exclusions = cfg.exclusions;
+  };
 
   baseConfig = ''
-    loglevel = "${cfg.logLevel}"
-    vpn_mode = "${cfg.vpnMode}"
-    killswitch_enabled = ${lib.boolToString cfg.killswitch.enable}
-    killswitch_allow_ports = [${lib.concatStringsSep ", " (map toString cfg.killswitch.allowPorts)}]
-    post_quantum_group_enabled = ${lib.boolToString cfg.postQuantum}
-    exclusions_tcp_early_ack_enabled = ${lib.boolToString cfg.exclusionsTcpEarlyAck}
-    exclusions_preresolve_enabled = ${lib.boolToString cfg.exclusionsPreresolve}
-    exclusions_preresolve_max_queries = ${toString cfg.exclusionsPreresolveMaxQueries}
-    exclusions_scannable_ports = "${cfg.exclusionsScannablePorts}"
-    exclusions = [${lib.concatStringsSep ", " (map (e: "\"${e}\"") cfg.exclusions)}]
-
+    ${builtins.readFile (formats.generate "client-base.toml" baseSettings)}
     ${lib.optionalString (cfg.settings != { }) (
       builtins.readFile (formats.generate "client-extra.toml" cfg.settings)
     )}
     ${cfg.extraConfig}
   '';
 
-  directEndpointConfig = ''
-    [endpoint]
-    hostname = "${cfg.endpoint.hostname}"
-    addresses = [${lib.concatStringsSep ", " (map (a: "\"${a}\"") cfg.endpoint.addresses)}]
-    has_ipv6 = ${lib.boolToString cfg.endpoint.ipv6}
-    username = "${cfg.endpoint.username}"
-    password = "${cfg.endpoint.password}"
-    client_random = "${cfg.endpoint.clientRandom}"
-    client_random_auth_key = "${cfg.endpoint.clientRandomAuthKey}"
-    skip_verification = ${lib.boolToString cfg.endpoint.skipVerification}
-    ${lib.optionalString (
-      cfg.endpoint.certificate != null
-    ) ''certificate = "${cfg.endpoint.certificate}"''}
-    ${lib.optionalString (cfg.endpoint.customSni != null) ''custom_sni = "${cfg.endpoint.customSni}"''}
-    upstream_protocol = "${cfg.endpoint.protocol}"
-    tls_profile = "${cfg.endpoint.tlsProfile}"
-    anti_dpi = ${lib.boolToString cfg.endpoint.antiDpi}
-    dns_upstreams = [${lib.concatStringsSep ", " (map (d: "\"${d}\"") cfg.endpoint.dnsUpstreams)}]
-  '';
+  endpointSettings = {
+    hostname = cfg.endpoint.hostname;
+    addresses = cfg.endpoint.addresses;
+    has_ipv6 = cfg.endpoint.ipv6;
+    username = cfg.endpoint.username;
+    password = cfg.endpoint.password;
+    client_random = cfg.endpoint.clientRandom;
+    client_random_auth_key = cfg.endpoint.clientRandomAuthKey;
+    skip_verification = cfg.endpoint.skipVerification;
+    upstream_protocol = cfg.endpoint.protocol;
+    tls_profile = cfg.endpoint.tlsProfile;
+    anti_dpi = cfg.endpoint.antiDpi;
+    dns_upstreams = cfg.endpoint.dnsUpstreams;
+  }
+  // (lib.optionalAttrs (cfg.endpoint.certificate != null) {
+    certificate = toString cfg.endpoint.certificate;
+  })
+  // (lib.optionalAttrs (cfg.endpoint.customSni != null) {
+    custom_sni = cfg.endpoint.customSni;
+  });
+
+  directEndpointConfig = builtins.readFile (
+    formats.generate "client-endpoint.toml" { endpoint = endpointSettings; }
+  );
+
+  tunSettings = {
+    bound_if = cfg.listener.tun.interface;
+    device_name = cfg.listener.tun.deviceName;
+    use_existing = cfg.listener.tun.useExisting;
+    included_routes = cfg.listener.tun.includedRoutes;
+    excluded_routes = cfg.listener.tun.excludedRoutes;
+    mtu_size = cfg.listener.tun.mtu;
+    tcp_recv_buf_size = cfg.listener.tun.tcpRecvBufferSize;
+    tcp_send_buf_size = cfg.listener.tun.tcpSendBufferSize;
+    change_system_dns = cfg.listener.tun.changeSystemDns;
+  };
+
+  tunListenerConfig = lib.optionalString cfg.listener.tun.enable (
+    builtins.readFile (formats.generate "client-tun.toml" { listener.tun = tunSettings; })
+  );
+
+  socksSettings = {
+    address = cfg.listener.socks.address;
+  }
+  // (lib.optionalAttrs (cfg.listener.socks.username != null) {
+    username = cfg.listener.socks.username;
+  })
+  // (lib.optionalAttrs (cfg.listener.socks.password != null) {
+    password = cfg.listener.socks.password;
+  });
+
+  socksListenerConfig = lib.optionalString cfg.listener.socks.enable (
+    builtins.readFile (formats.generate "client-socks.toml" { listener.socks = socksSettings; })
+  );
 
   clientToml = pkgs.writeText "trusttunnel_client.toml" ''
     ${baseConfig}${directEndpointConfig}${tunListenerConfig}${socksListenerConfig}
@@ -95,6 +103,7 @@ let
     ${pkgs.coreutils}/bin/cat ${baseConfigFile} > ${runtimeConfig}
     printf '%s\n' "$ENDPOINT_SECTION" >> ${runtimeConfig}
     ${pkgs.coreutils}/bin/cat ${listenerConfigFile} >> ${runtimeConfig}
+    ${pkgs.coreutils}/bin/chmod 600 ${runtimeConfig}
   '';
 
   mergeFromDeeplink = ''
@@ -128,19 +137,21 @@ let
   '';
 
   overrideCredentials = ''
-    USERNAME=$(${pkgs.gnused}/bin/sed -n 's/^username[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' ${lib.escapeShellArg (toString cfg.credentialsFile)})
-    PASSWORD=$(${pkgs.gnused}/bin/sed -n 's/^password[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' ${lib.escapeShellArg (toString cfg.credentialsFile)})
+    USERNAME=$(${pkgs.gnused}/bin/sed -n '/^username[[:space:]]*=/{s/^username[[:space:]]*=[[:space:]]*//;p;q}' ${lib.escapeShellArg (toString cfg.credentialsFile)})
+    PASSWORD=$(${pkgs.gnused}/bin/sed -n '/^password[[:space:]]*=/{s/^password[[:space:]]*=[[:space:]]*//;p;q}' ${lib.escapeShellArg (toString cfg.credentialsFile)})
     if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
       echo "failed to read username/password from ${toString cfg.credentialsFile}" >&2
       exit 1
     fi
-    ${pkgs.gawk}/bin/awk -v user="$USERNAME" -v pass="$PASSWORD" '
+    USERNAME="$USERNAME" PASSWORD="$PASSWORD" ${pkgs.gawk}/bin/awk '
+      BEGIN { user = ENVIRON["USERNAME"]; pass = ENVIRON["PASSWORD"] }
       /^\[/ { section = $0 }
-      section == "[endpoint]" && /^username[[:space:]]*=/ { print "username = \"" user "\""; next }
-      section == "[endpoint]" && /^password[[:space:]]*=/ { print "password = \"" pass "\""; next }
+      section == "[endpoint]" && /^username[[:space:]]*=/ { print "username = " user; next }
+      section == "[endpoint]" && /^password[[:space:]]*=/ { print "password = " pass; next }
       { print }
     ' ${runtimeConfig} > ${runtimeConfig}.tmp
     ${pkgs.coreutils}/bin/mv ${runtimeConfig}.tmp ${runtimeConfig}
+    ${pkgs.coreutils}/bin/chmod 600 ${runtimeConfig}
   '';
 
   preStart = lib.optionalString hasRuntimeSource ''
@@ -510,12 +521,25 @@ in
         assertion = !cfg.listener.tun.useExisting || cfg.listener.tun.deviceName != "";
         message = "services.trusttunnel.client.listener.tun: useExisting requires deviceName.";
       }
+      {
+        assertion = cfg.listener.tun.enable != cfg.listener.socks.enable;
+        message = "services.trusttunnel.client.listener: enable exactly one of tun or socks.";
+      }
     ];
 
     warnings =
       lib.optional
         (cfg.credentialsFile == null && (cfg.endpoint.username != "" || cfg.endpoint.password != ""))
-        "services.trusttunnel.client.endpoint.username/password are stored in the Nix store. Use credentialsFile instead.";
+        "services.trusttunnel.client.endpoint.username/password are stored in the Nix store. Use credentialsFile instead."
+      ++ lib.optional (
+        cfg.listener.socks.password != null
+      ) "services.trusttunnel.client.listener.socks.password is stored in the Nix store."
+      ++ lib.optional (
+        cfg.endpoint.clientRandomAuthKey != ""
+      ) "services.trusttunnel.client.endpoint.clientRandomAuthKey is stored in the Nix store."
+      ++
+        lib.optional (cfg.deeplinkFile != null)
+          "services.trusttunnel.client.deeplinkFile is passed to the client as a process argument during preStart. Local users can read it. Use importConfigFile and credentialsFile instead.";
 
     systemd.services.trusttunnel-client = {
       description = "TrustTunnel VPN Client";

@@ -109,6 +109,10 @@ services.trusttunnel.endpoint = {
 The module creates the certificate at service start under
 `/var/lib/trusttunnel/certs/<hostname>/`.
 
+Enable exactly one of `forwardProtocol.direct` or
+`forwardProtocol.socks5`. Set at least one `tls.mainHosts` entry. Each
+TLS host must set both `certPath` and `keyPath`, or neither.
+
 ## Client
 
 Import the client module:
@@ -129,14 +133,13 @@ Import the client module:
     };
 
     listener.tun.enable = true;
-    listener.socks = {
-      enable = true;
-      address = "127.0.0.1:1080";
-    };
     killswitch.enable = true;
   };
 }
 ```
+
+The client accepts exactly one listener. To use a SOCKS listener, set
+`listener.tun.enable = false` and set `listener.socks.enable = true`.
 
 The client service runs as root with a restricted capability set. The
 credentials file must be readable by root. A sops secret with
@@ -166,6 +169,10 @@ services.trusttunnel.client = {
 `deeplinkFile` and `importConfigFile` are read at runtime. The module
 never writes their contents to the Nix store.
 
+The client setup wizard receives the deeplink as a process argument.
+A local user can read it from `/proc` while the service starts. Prefer
+`importConfigFile` and `credentialsFile` for system services.
+
 ## Both modules
 
 ```nix
@@ -180,14 +187,19 @@ the package overlay once.
 
 ## Security
 
-- Use `credentialsFile`. Do not set `credentials` or
-  `endpoint.username` and `endpoint.password`. These values are stored
-  in the Nix store.
+- Use `credentialsFile`. Do not set `credentials`, `endpoint.username`,
+  `endpoint.password`, `endpoint.clientRandomAuthKey`, or
+  `listener.socks.password`. These values are stored in the Nix store.
 - The endpoint credentials file must be readable by the `trusttunnel`
   user.
 - The client credentials file must be readable by root. The service
   runs as root with a restricted capability set.
 - Keep secrets in sops or another runtime secret store.
+- `deeplinkFile` passes the deeplink to the setup wizard as a process
+  argument. Prefer `importConfigFile` and `credentialsFile` for system
+  services.
+- `metrics.perClientMetrics` exposes usernames and client IPs. Bind the
+  metrics listener to a protected address.
 
 ## Module options
 

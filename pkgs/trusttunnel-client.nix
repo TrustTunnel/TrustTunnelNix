@@ -2,11 +2,16 @@
   lib,
   stdenvNoCC,
   fetchurl,
+  fetchFromGitHub,
 }:
 
 stdenvNoCC.mkDerivation (
   finalAttrs:
   let
+    # The source is used by checks/config-coverage.nix to validate the client
+    # configuration schema against the pinned release.
+    clientSrcHash = "sha256-1O5ztAydZaU31bhZS7+Mm+yspezRykl+/OinYVC+fT4=";
+
     sources = {
       x86_64-linux = {
         suffix = "linux-x86_64";
@@ -51,7 +56,16 @@ stdenvNoCC.mkDerivation (
       runHook postInstall
     '';
 
-    passthru.updateScript = ../scripts/update-client.sh;
+    passthru = {
+      inherit clientSrcHash;
+      clientSrc = fetchFromGitHub {
+        owner = "TrustTunnel";
+        repo = "TrustTunnelClient";
+        tag = "v${finalAttrs.version}";
+        hash = clientSrcHash;
+      };
+      updateScript = ../scripts/update-client.sh;
+    };
 
     meta = {
       version = finalAttrs.version;

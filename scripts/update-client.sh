@@ -29,14 +29,15 @@ hash_for() {
 x86_64_linux="$(hash_for "${base}/trusttunnel_client-v${version}-linux-x86_64.tar.gz")"
 aarch64_linux="$(hash_for "${base}/trusttunnel_client-v${version}-linux-aarch64.tar.gz")"
 macos="$(hash_for "${base}/trusttunnel_client-v${version}-macos-universal.tar.gz")"
+client_src="$(nix store prefetch-file --unpack --json "https://github.com/${repo}/archive/refs/tags/${tag}.tar.gz" | jq -r '.hash')"
 
-python3 - "$package_file" "$version" "$x86_64_linux" "$aarch64_linux" "$macos" <<'PY'
+python3 - "$package_file" "$version" "$x86_64_linux" "$aarch64_linux" "$macos" "$client_src" <<'PY'
 import pathlib
 import re
 import sys
 
 path = pathlib.Path(sys.argv[1])
-version, x86_64_linux, aarch64_linux, macos = sys.argv[2:6]
+version, x86_64_linux, aarch64_linux, macos, client_src = sys.argv[2:7]
 text = path.read_text()
 
 text, count = re.subn(r'version = "[^"]+";', f'version = "{version}";', text, count=1)
@@ -53,6 +54,10 @@ for system, digest in (
     text, count = re.subn(pattern, rf'\g<1>{digest}\g<2>', text, count=1)
     if count != 1:
         raise SystemExit(f"failed to update hash for {system}")
+
+text, count = re.subn(r'clientSrcHash = "[^"]+";', f'clientSrcHash = "{client_src}";', text, count=1)
+if count != 1:
+    raise SystemExit("failed to update the client source hash")
 
 path.write_text(text)
 PY

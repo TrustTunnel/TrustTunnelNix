@@ -74,9 +74,17 @@
             endpointModule = ./modules/endpoint.nix;
             clientModule = ./modules/client.nix;
           };
+          module-eval = pkgs.callPackage ./checks/module-eval.nix {
+            inherit (nixpkgs) lib;
+            inherit (self) nixosModules;
+          };
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           endpoint-vm = pkgs.callPackage ./tests/endpoint.nix {
+            inherit (self.packages.${system}) trusttunnel-endpoint;
+            endpointModule = ./modules/endpoint.nix;
+          };
+          endpoint-socks5-vm = pkgs.callPackage ./tests/endpoint-socks5.nix {
             inherit (self.packages.${system}) trusttunnel-endpoint;
             endpointModule = ./modules/endpoint.nix;
           };
