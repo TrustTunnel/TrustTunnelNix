@@ -1,5 +1,5 @@
 # Checks the upstream GitHub releases daily and commits the updated package
-# versions directly to main. The update script changes only pkgs/. The workflow
+# versions directly to master. The update script changes only pkgs/. The workflow
 # runs the full x86_64-linux flake check before it commits, then dispatches
 # ci.yml because a GITHUB_TOKEN push does not trigger workflows.
 name: Update package versions
@@ -23,7 +23,7 @@ jobs:
     if: >-
       (github.repository == 'i-zhirov/trusttunnel-nix' ||
        github.repository == 'TrustTunnel/trusttunnel-nix') &&
-      github.ref == 'refs/heads/main'
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
