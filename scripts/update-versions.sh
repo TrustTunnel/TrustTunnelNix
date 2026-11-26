@@ -3,6 +3,10 @@
 #
 #   scripts/update-versions.sh [--dry-run]
 #
+# The script first compares the latest upstream tags with the pinned
+# versions. When both packages are current, it exits without downloading
+# release assets or running nix-update.
+#
 # The script changes only the package files:
 #
 #   - trusttunnel-client: scripts/update-client.sh fetches the release assets
@@ -20,7 +24,9 @@
 
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(dirname "$script_dir")"
+script_path="$script_dir/$(basename "${BASH_SOURCE[0]}")"
 cd "$root"
 
 dry_run=false
@@ -41,8 +47,68 @@ for arg in "$@"; do
   esac
 done
 
+# The version check needs curl and jq. Use the flake's nixpkgs when the host
+# lacks them.
+if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+  exec nix shell --inputs-from . nixpkgs#curl nixpkgs#jq --command bash "$script_path" "$@"
+fi
+
 client_file="pkgs/trusttunnel-client.nix"
 endpoint_file="pkgs/trusttunnel-endpoint.nix"
+
+pinned_version() {
+  sed -n 's/^[[:space:]]*version = "\([^"]*\)";.*/\1/p' "$1" | head -n 1
+}
+
+github_get() {
+  local url=$1
+  local args=(-fsSL)
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+  curl "${args[@]}" "$url"
+}
+
+latest_version() {
+  github_get "https://api.github.com/repos/$1/releases/latest" \
+    | jq -r '.tag_name' \
+    | sed 's/^v//'
+}
+
+pinned_client="$(pinned_version "$client_file")"
+pinned_endpoint="$(pinned_version "$endpoint_file")"
+if [[ -z "$pinned_client" || -z "$pinned_endpoint" ]]; then
+  echo "error: cannot read a pinned version from the package files" >&2
+  exit 1
+fi
+
+latest_client="$(latest_version "TrustTunnel/TrustTunnelClient")"
+latest_endpoint="$(latest_version "TrustTunnel/TrustTunnel")"
+
+client_update=false
+endpoint_update=false
+if [[ "$latest_client" != "$pinned_client" ]]; then
+  client_update=true
+fi
+if [[ "$latest_endpoint" != "$pinned_endpoint" ]]; then
+  endpoint_update=true
+fi
+
+if [[ "$client_update" == false && "$endpoint_update" == false ]]; then
+  echo "All packages are up to date (client ${pinned_client}, endpoint ${pinned_endpoint})."
+  exit 0
+fi
+
+if [[ "$client_update" == true ]]; then
+  echo "Client: ${pinned_client} -> ${latest_client}"
+else
+  echo "Client: ${pinned_client} is current."
+fi
+if [[ "$endpoint_update" == true ]]; then
+  echo "Endpoint: ${pinned_endpoint} -> ${latest_endpoint}"
+else
+  echo "Endpoint: ${pinned_endpoint} is current."
+fi
 
 # A dry run must not discard local edits, so back up the two files instead of
 # using `git checkout` to restore them.
@@ -60,17 +126,20 @@ restore() {
 }
 trap restore EXIT
 
-# Provide curl, jq, and python3 from the flake's nixpkgs instead of the
-# runner's channel. Invoke the script with bash so its nix-shell shebang is
-# not used.
-nix shell --inputs-from . \
-  nixpkgs#bash nixpkgs#curl nixpkgs#jq nixpkgs#python3 \
-  --command bash scripts/update-client.sh
+if [[ "$client_update" == true ]]; then
+  # Provide curl, jq, and python3 from the flake's nixpkgs instead of the
+  # runner's channel. Invoke the script with bash so its nix-shell shebang is
+  # not used.
+  nix shell --inputs-from . \
+    nixpkgs#bash nixpkgs#curl nixpkgs#jq nixpkgs#python3 \
+    --command bash scripts/update-client.sh --version "$latest_client"
+fi
 
-# Keep the committed Cargo.lock and boring-v5.patch. Only the source changes.
-# --use-github-releases marks prereleases explicitly, as the Homebrew tap does.
-nix run --inputs-from . nixpkgs#nix-update -- \
-  --flake --src-only --use-github-releases trusttunnel-endpoint
+if [[ "$endpoint_update" == true ]]; then
+  # Keep the committed Cargo.lock and boring-v5.patch. Only the source changes.
+  nix run --inputs-from . nixpkgs#nix-update -- \
+    --flake --src-only --version "$latest_endpoint" trusttunnel-endpoint
+fi
 
 if git diff --quiet -- "$client_file" "$endpoint_file"; then
   echo "All packages are up to date."

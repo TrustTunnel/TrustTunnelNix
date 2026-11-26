@@ -48,7 +48,8 @@ The [update-versions](.github/workflows/update-versions.yml) workflow
 checks the upstream releases daily at 06:00 UTC and on manual dispatch.
 It updates both packages, runs `nix flake check` on `x86_64-linux`, and
 commits the package files to `master` when the check passes. CI starts
-after the commit.
+after the commit. When both packages are current, the run stops after the
+version check and does not run `nix flake check`.
 
 The workflow pushes to `master` with the built-in `GITHUB_TOKEN`. The
 repository must allow GitHub Actions to push to `master`.
@@ -71,9 +72,9 @@ The script updates both packages:
 - `trusttunnel-client`: `scripts/update-client.sh` fetches the latest
   release, then updates the version, the platform hashes, and the source
   hash in `pkgs/trusttunnel-client.nix`.
-- `trusttunnel-endpoint`: `nix-update --flake --src-only
-  --use-github-releases trusttunnel-endpoint` updates the source version
-  and hash in `pkgs/trusttunnel-endpoint.nix`. The update keeps the
+- `trusttunnel-endpoint`: `nix-update --flake --src-only` updates the
+  source version and hash in `pkgs/trusttunnel-endpoint.nix`. The script
+  passes the version from the version check. The update keeps the
   committed `Cargo.lock` and `boring-v5.patch`. If an upstream release
   breaks them, `nix flake check` fails and the workflow commits nothing.
 

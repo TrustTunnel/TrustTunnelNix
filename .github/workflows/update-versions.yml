@@ -55,8 +55,8 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Fail before the commit when the bumped packages do not build or the
-      # module checks do not match the new upstream sources.
+      # Run the full check only when the update changed a package. A run with
+      # no update stops after the version check in the previous step.
       - name: Validate
         if: steps.bump.outputs.changed == 'true'
         run: nix flake check --print-build-logs
