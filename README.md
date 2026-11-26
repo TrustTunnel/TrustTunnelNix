@@ -34,6 +34,8 @@ The NixOS modules are available on `x86_64-linux` and `aarch64-linux`.
 
 ## Installation
 
+### Flake input
+
 Add the flake as an input:
 
 ```nix
@@ -48,12 +50,45 @@ Add the flake as an input:
 }
 ```
 
+### Binary cache
+
+The packages are available from a public Cachix cache. The cache covers
+all supported systems. Enable the cache once before you build or
+install a package.
+
+On systems that do not use NixOS, run:
+
+```sh
+cachix use trusttunnel
+```
+
+If you do not have the Cachix client, run:
+
+```sh
+nix run nixpkgs#cachix -- use trusttunnel
+```
+
+On NixOS, add the cache to `configuration.nix`:
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://trusttunnel.cachix.org" ];
+  extra-trusted-public-keys = [
+    "trusttunnel.cachix.org-1:f5OQuI9vTh2G55NYOFLOnOaYtlZPgNIYJn8lr+FW44I="
+  ];
+};
+```
+
+### Build a package
+
 Build a package directly:
 
 ```sh
 nix build github:TrustTunnel/TrustTunnelNix#trusttunnel-endpoint
 nix build github:TrustTunnel/TrustTunnelNix#trusttunnel-client
 ```
+
+### Install the client
 
 Install the client into a profile:
 
