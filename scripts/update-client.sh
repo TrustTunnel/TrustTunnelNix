@@ -15,7 +15,11 @@ if [[ "${1:-}" == "--version" ]]; then
   version="$2"
   tag="v${version}"
 else
-  release="$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest")"
+  curl_args=(-fsSL)
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+  release="$(curl "${curl_args[@]}" "https://api.github.com/repos/${repo}/releases/latest")"
   tag="$(jq -r '.tag_name' <<<"$release")"
   version="${tag#v}"
 fi

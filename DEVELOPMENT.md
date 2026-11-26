@@ -50,6 +50,9 @@ It updates both packages, runs `nix flake check` on `x86_64-linux`, and
 commits the package files to `master` when the check passes. CI starts
 after the commit.
 
+The workflow pushes to `master` with the built-in `GITHUB_TOKEN`. The
+repository must allow GitHub Actions to push to `master`.
+
 Run the same update locally:
 
 ```sh
