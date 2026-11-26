@@ -1,15 +1,25 @@
-# TrustTunnel Nix
+<!-- markdownlint-disable MD041 -->
+<p align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://cdn.adguardcdn.com/website/github.com/TrustTunnel/logo_dark.svg" width="300px" alt="TrustTunnel" />
+<img src="https://cdn.adguardcdn.com/website/github.com/TrustTunnel/logo_light.svg" width="300px" alt="TrustTunnel" />
+</picture>
+</p>
 
-Nix packages and NixOS modules for the TrustTunnel VPN protocol.
+<p align="center"><a href="https://nixos.org/">Nix</a> packages and <a href="https://nixos.org/">NixOS</a> modules for the TrustTunnel VPN protocol</p>
+
+<p align="center"><a href="#installation">Installation</a>
+  · <a href="https://github.com/TrustTunnel/TrustTunnel">Server</a>
+  · <a href="https://github.com/TrustTunnel/TrustTunnelClient">CLI client</a>
+  · <a href="https://trusttunnel.org">Website</a>
+</p>
+
+---
 
 TrustTunnel is a modern, fast, and obfuscated VPN protocol developed by
 AdGuard. This flake packages the TrustTunnel endpoint and the
 command-line client. It also provides NixOS modules for both services.
 Use it to run a TrustTunnel server, a client, or both on NixOS.
-
-[Server](https://github.com/TrustTunnel/TrustTunnel) ·
-[CLI client](https://github.com/TrustTunnel/TrustTunnelClient) ·
-[Website](https://trusttunnel.org)
 
 ## Supported systems
 
