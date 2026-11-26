@@ -21,8 +21,7 @@ concurrency:
 jobs:
   update-versions:
     if: >-
-      (github.repository == 'i-zhirov/trusttunnel-nix' ||
-       github.repository == 'TrustTunnel/trusttunnel-nix') &&
+      github.repository == 'TrustTunnel/TrustTunnelNix' &&
       github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 120

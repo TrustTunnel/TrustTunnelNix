@@ -41,7 +41,7 @@ Add the flake as an input:
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     trusttunnel = {
-      url = "github:TrustTunnel/trusttunnel-nix";
+      url = "github:TrustTunnel/TrustTunnelNix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -51,14 +51,14 @@ Add the flake as an input:
 Build a package directly:
 
 ```sh
-nix build github:TrustTunnel/trusttunnel-nix#trusttunnel-endpoint
-nix build github:TrustTunnel/trusttunnel-nix#trusttunnel-client
+nix build github:TrustTunnel/TrustTunnelNix#trusttunnel-endpoint
+nix build github:TrustTunnel/TrustTunnelNix#trusttunnel-client
 ```
 
 Install the client into a profile:
 
 ```sh
-nix profile install github:TrustTunnel/trusttunnel-nix#trusttunnel-client
+nix profile install github:TrustTunnel/TrustTunnelNix#trusttunnel-client
 ```
 
 ## Documentation
