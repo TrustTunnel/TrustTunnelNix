@@ -1,5 +1,5 @@
 {
-  description = "Nix packages for the TrustTunnel VPN protocol";
+  description = "Nix packages and NixOS modules for the TrustTunnel VPN protocol";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 

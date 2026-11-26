@@ -80,7 +80,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     license = lib.licenses.asl20;
     maintainers = [
       {
-        name = "Ilya Zhirov";
+        name = "Ilia Zhirov";
         github = "i-zhirov";
       }
     ];

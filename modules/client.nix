@@ -169,7 +169,7 @@ in
   meta = {
     maintainers = [
       {
-        name = "Ilya Zhirov";
+        name = "Ilia Zhirov";
         github = "i-zhirov";
       }
     ];
