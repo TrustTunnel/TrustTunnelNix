@@ -1,0 +1,78 @@
+# Checks the upstream GitHub releases daily and commits the updated package
+# versions directly to master. The update script changes only pkgs/. The workflow
+# runs the full x86_64-linux flake check before it commits, then dispatches
+# ci.yml because a GITHUB_TOKEN push does not trigger workflows.
+name: Update package versions
+
+on:
+  schedule:
+    # Check for newer upstream releases daily at 06:00 UTC.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-package-versions
+  cancel-in-progress: false
+
+jobs:
+  update-versions:
+    if: >-
+      (github.repository == 'i-zhirov/trusttunnel-nix' ||
+       github.repository == 'TrustTunnel/trusttunnel-nix') &&
+      github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Bump package versions
+        id: bump
+        env:
+          # nix-update uses the releases API. The token lifts its rate limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./scripts/update-versions.sh
+          if ! git diff --quiet -- . ':(exclude)pkgs'; then
+            echo "::error::The update changed files outside pkgs/."
+            git diff --stat -- . ':(exclude)pkgs'
+            exit 1
+          fi
+          if git diff --quiet -- pkgs; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Run the full check only when the update changed a package. A run with
+      # no update stops after the version check in the previous step.
+      - name: Validate
+        if: steps.bump.outputs.changed == 'true'
+        run: nix flake check --print-build-logs
+
+      - name: Commit and push
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pkgs
+          git commit -m "Update TrustTunnel packages to the latest release"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      # A GITHUB_TOKEN push does not trigger workflows, so start CI explicitly.
+      - name: Dispatch CI
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "${GITHUB_REF_NAME}"
