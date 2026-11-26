@@ -35,13 +35,37 @@ jobs:
           - os: macos-latest
             system: aarch64-darwin
             command: nix flake check --print-build-logs
+          - os: macos-15-intel
+            system: x86_64-darwin
+            command: nix flake check --print-build-logs
+            installCommand: nix-env --quiet -j8 -iA cachix -f https://cachix.org/api/v1/install/1.11.1
     steps:
       - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+      - name: Check Cachix token
+        if: github.ref == 'refs/heads/master'
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+            echo "::error::CACHIX_AUTH_TOKEN is not set"
+            exit 1
+          fi
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: trusttunnel
+          authToken: ${{ github.ref == 'refs/heads/master' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          skipPush: true
+          installCommand: ${{ matrix.installCommand }}
       - run: ${{ matrix.command }}
+      - name: Push packages to Cachix
+        if: github.ref == 'refs/heads/master'
+        continue-on-error: true
+        run: nix path-info .#packages.${{ matrix.system }}.trusttunnel-endpoint .#packages.${{ matrix.system }}.trusttunnel-client | cachix push trusttunnel
 
   format:
     name: formatting

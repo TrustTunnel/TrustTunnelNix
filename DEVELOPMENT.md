@@ -8,6 +8,19 @@ This page describes how to build, test, and update the flake.
 - A Linux host for the VM tests. The package builds run on all
   supported systems.
 
+## Use the binary cache
+
+Master CI and the update workflow push the packages to the public
+Cachix cache `trusttunnel`. To reuse the cache locally, run:
+
+```sh
+cachix use trusttunnel
+```
+
+The repository secret `CACHIX_AUTH_TOKEN` gives write access. Only
+trusted runs on `master` push to the cache. Pull request runs read the
+cache and never push.
+
 ## Build the packages
 
 ```sh
